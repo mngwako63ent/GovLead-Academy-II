@@ -210,10 +210,6 @@ export function seed() {
     const insertUser = db.prepare('INSERT INTO users (email, password, full_name, role, subscription_status) VALUES (?, ?, ?, ?, ?)');
     insertUser.run('admin@govlead.co.za', bcrypt.hashSync('admin123', 10), 'GovLead Admin', 'admin', 'premium');
     insertUser.run('learner@example.com', bcrypt.hashSync('user123', 10), 'John Doe', 'student', 'free');
-  } else {
-    const updatePass = db.prepare('UPDATE users SET password = ? WHERE email = ?');
-    updatePass.run(bcrypt.hashSync('admin123', 10), 'admin@govlead.co.za');
-    updatePass.run(bcrypt.hashSync('user123', 10), 'learner@example.com');
   }
 
   // 2. Categories
@@ -227,18 +223,12 @@ export function seed() {
   }
 
   // 3. Courses
-  // Clear existing courses, modules, and lessons to ensure a clean slate as requested
-  // Delete dependent tables first to avoid foreign key constraints
-  db.prepare('DELETE FROM analytics_events').run();
-  db.prepare('DELETE FROM certificates').run();
-  db.prepare('DELETE FROM discussions').run();
-  db.prepare('DELETE FROM notes').run();
-  db.prepare('DELETE FROM bookmarks').run();
-  db.prepare('DELETE FROM user_progress').run();
-  db.prepare('DELETE FROM enrollments').run();
-  db.prepare('DELETE FROM lessons').run();
-  db.prepare('DELETE FROM modules').run();
-  db.prepare('DELETE FROM courses').run();
+  // Only seed if no courses exist to avoid slow restarts
+  const courseCount = (db.prepare('SELECT count(*) as count FROM courses').get() as any).count;
+  if (courseCount > 0) {
+    console.log('Database already seeded with courses.');
+    return;
+  }
 
   const coreCourses = [
     {

@@ -33,7 +33,9 @@ async function startServer() {
 
   // Initialize DB
   try {
+    console.log('Seeding database...');
     seed();
+    console.log('Database seeded.');
   } catch (err) {
     console.error('Database seeding failed:', err);
   }
@@ -44,7 +46,9 @@ async function startServer() {
   // File Upload Configuration
   const uploadDir = path.join(__dirname, 'public', 'uploads');
   if (!fs.existsSync(uploadDir)) {
+    console.log('Creating uploads directory...');
     fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('Uploads directory created.');
   }
 
   const storage = multer.diskStorage({
@@ -428,13 +432,34 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    
+    // Fallback for SPA routes in dev mode if vite middleware misses it
+    app.use('*', async (req, res, next) => {
+      if (req.originalUrl.startsWith('/api')) return next();
+      try {
+        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        next(e);
+      }
     });
+  } else {
+    const distPath = path.join(__dirname, 'dist');
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else {
+      // Fallback if dist doesn't exist but we're in production mode
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, 'index.html'));
+      });
+    }
   }
 
+  console.log('Starting server...');
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
